@@ -1,10 +1,5 @@
-// ProvisionBle.jsx — barebones ESP-IDF BLE provisioning via esp-idf-provisioning-web
-// - Security0 only (no PoP, ever)
-// - Scan SSIDs immediately after connect
-// - No disconnect button
-//
+// ProvisionBle.jsx — nicer UI (no framework)
 // deps: npm i esp-idf-provisioning-web
-// Notes: Chromium only, HTTPS or http://localhost required.
 
 import React, { useMemo, useState } from "react";
 import { ESPProvisionManager } from "esp-idf-provisioning-web";
@@ -49,17 +44,20 @@ export default function ProvisionBle() {
     return Array.from(best.values()).sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
   }, [wifiList]);
 
+  const statusText = provDev ? (busy ? "Connected • working" : "Connected") : busy ? "Working…" : "Not connected";
+  const dotClass = provDev ? (busy ? "m64-dot m64-dot--busy" : "m64-dot m64-dot--good") : "m64-dot";
+
   async function connectAndScan() {
     setErr("");
     setBusy(true);
     try {
       pushLog("Opening BLE device picker…");
-      const dev = await ESPProvisionManager.searchBLEDevice(); // native picker
+      const dev = await ESPProvisionManager.searchBLEDevice();
       setProvDev(dev);
 
       pushLog(`Selected: ${dev?.deviceName || dev?.name || "(no name)"}`);
       pushLog("Connecting (Security0)…");
-      await dev.connect(); // no PoP
+      await dev.connect();
 
       pushLog("Connected ✅");
       pushLog("Scanning Wi-Fi networks…");
@@ -94,68 +92,93 @@ export default function ProvisionBle() {
   }
 
   return (
-    <div style={{ maxWidth: 520, fontFamily: "system-ui, sans-serif" }}>
-      <h3>Module64 — BLE Provisioning (Security0)</h3>
+    <div className="m64-page">
+      <div className="m64-shell">
+        <div className="m64-card">
+          <div className="m64-card__top">
+            <div className="m64-title">
+              <h1>Module64 — BLE Provisioning</h1>
+              <p className="m64-sub">Security0 • scan SSIDs after connect • Chrome/Edge only</p>
+            </div>
 
-      <div style={{ display: "grid", gap: 10 }}>
-        <button onClick={connectAndScan} disabled={busy || !!provDev} style={{ padding: "10px 12px", fontWeight: 600 }}>
-          {provDev ? "Connected" : busy ? "Connecting…" : "Connect + Scan SSIDs"}
-        </button>
-
-        <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 13, opacity: 0.8 }}>Wi-Fi network</label>
-          <select
-            value={ssid}
-            onChange={(e) => setSsid(e.target.value)}
-            disabled={busy || !provDev}
-            style={{ padding: 8 }}
-          >
-            <option value="">— pick SSID —</option>
-            {sortedWifi.map((ap) => (
-              <option key={ap.ssid} value={ap.ssid}>
-                {ap.ssid}
-                {ap.rssi != null ? `  (${ap.rssi} dBm)` : ""}
-                {ap.auth ? `  [${ap.auth}]` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 13, opacity: 0.8 }}>Password</label>
-          <input
-            type="password"
-            value={pass}
-            onChange={(e) => setPass(e.target.value)}
-            placeholder="Wi-Fi password"
-            disabled={busy || !provDev}
-            style={{ padding: 8 }}
-          />
-        </div>
-
-        <button
-          onClick={provision}
-          disabled={busy || !provDev || !ssid}
-          style={{ padding: "10px 12px", fontWeight: 600 }}
-        >
-          Send credentials
-        </button>
-
-        {err ? (
-          <div style={{ padding: 10, background: "#ffecec", border: "1px solid #ffb3b3" }}>
-            {err}
+            <div className="m64-pill" title="Connection status">
+              <span className={dotClass} />
+              <span>{statusText}</span>
+            </div>
           </div>
-        ) : null}
 
-        <div style={{ padding: 10, background: "#f6f6f6", border: "1px solid #ddd" }}>
-          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Log</div>
-          <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12 }}>
-            {log.slice(-40).join("\n")}
-          </pre>
-        </div>
+          <div className="m64-glow" />
 
-        <div style={{ fontSize: 12, opacity: 0.75 }}>
-          Web BLE: Chrome/Edge only, served over HTTPS (or localhost).
+          <div className="m64-card__body">
+            <div className="m64-row">
+              <button
+                className="m64-btn m64-btn--primary"
+                onClick={connectAndScan}
+                disabled={busy || !!provDev}
+              >
+                {provDev ? "Connected" : busy ? "Connecting…" : "Connect + Scan SSIDs"}
+              </button>
+
+              <button
+                className="m64-btn m64-btn--ghost"
+                onClick={provision}
+                disabled={busy || !provDev || !ssid}
+              >
+                Send credentials
+              </button>
+            </div>
+
+            <div className="m64-grid">
+              <div className="m64-field">
+                <div className="m64-label">Wi-Fi network</div>
+                <select
+                  className="m64-select"
+                  value={ssid}
+                  onChange={(e) => setSsid(e.target.value)}
+                  disabled={busy || !provDev}
+                >
+                  <option value="">— pick SSID —</option>
+                  {sortedWifi.map((ap) => (
+                    <option key={ap.ssid} value={ap.ssid}>
+                      {ap.ssid}
+                      {ap.rssi != null ? `  (${ap.rssi} dBm)` : ""}
+                      {ap.auth ? `  [${ap.auth}]` : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="m64-help">
+                  Tip: choose the strongest RSSI entry (top of the list).
+                </div>
+              </div>
+
+              <div className="m64-field">
+                <div className="m64-label">Password</div>
+                <input
+                  className="m64-input"
+                  type="password"
+                  value={pass}
+                  onChange={(e) => setPass(e.target.value)}
+                  placeholder="Wi-Fi password"
+                  disabled={busy || !provDev}
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
+
+            {err ? <div className="m64-alert">{err}</div> : null}
+
+            <div className="m64-log">
+              <div className="m64-log__top">
+                <div className="m64-log__title">Log</div>
+                <div className="m64-log__meta">{log.length ? `${Math.min(40, log.length)} / ${log.length}` : "—"}</div>
+              </div>
+              <pre className="m64-pre">{log.slice(-40).join("\n")}</pre>
+            </div>
+
+            <div className="m64-footer">
+              Web Bluetooth requires a secure context: HTTPS (or http://localhost). Chrome/Edge only.
+            </div>
+          </div>
         </div>
       </div>
     </div>
