@@ -1,110 +1,62 @@
-/* Simple neutral styling — nothing fancy */
-
 :root {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  color: #222;
-  background: #f6f7f8;
+  --bg: #0a0a0a;
+  --fg: #e0e0e0;
+  --accent: #ff4d00; /* Industrial Orange */
+  --grid-color: rgba(255, 255, 255, 0.05);
+  --border: 1px solid #222;
+  --font-mono: "JetBrains Mono", "SF Mono", monospace;
+  --radius: 2px;
 }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  margin: 0;
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Page container */
-.page {
-  max-width: 640px;
-  margin: 40px auto;
-  padding: 0 16px;
+/* The "64x64" Grid Overlay */
+.pixel-grid {
+  position: fixed;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
 }
 
-/* Card */
+.container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+
+/* Components */
+.btn {
+  display: inline-block;
+  padding: 0.8rem 1.5rem;
+  background: var(--accent);
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: var(--radius);
+  transition: transform 0.1s;
+}
+
+.btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
+
 .card {
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
+  border: var(--border);
+  padding: 2rem;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(4px);
 }
+
+section { padding: 100px 0; border-bottom: var(--border); }
 
 /* Typography */
-h1 {
-  font-size: 20px;
-  margin: 0 0 6px;
-}
-
-.subtitle {
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 18px;
-}
-
-/* Form */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 14px;
-}
-
-label {
-  font-size: 13px;
-  color: #444;
-}
-
-input,
-select,
-button {
-  font-size: 14px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-}
-
-input:focus,
-select:focus {
-  outline: none;
-  border-color: #888;
-}
-
-/* Buttons */
-button {
-  cursor: pointer;
-  background: #f3f3f3;
-}
-
-button:hover {
-  background: #e9e9e9;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* Status + errors */
-.status {
-  font-size: 13px;
-  margin-bottom: 12px;
-  color: #555;
-}
-
-.error {
-  padding: 10px;
-  border: 1px solid #f2b6b6;
-  background: #fff0f0;
-  border-radius: 6px;
-  margin-bottom: 14px;
-}
-
-/* Log box */
-.log {
-  background: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 10px;
-  font-family: monospace;
-  font-size: 12px;
-  white-space: pre-wrap;
-  max-height: 220px;
-  overflow-y: auto;
-}
+h1, h2, h3 { text-transform: uppercase; font-weight: 800; letter-spacing: -1px; }
+.dim { color: #666; }

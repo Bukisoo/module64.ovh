@@ -1,23 +1,30 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { ESPProvisionManager } from "esp-idf-provisioning-web";
 
 export default function ProvisionBle() {
   const [provDev, setProvDev] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-
   const [wifiList, setWifiList] = useState([]);
   const [ssid, setSsid] = useState("");
   const [pass, setPass] = useState("");
-
   const [log, setLog] = useState([]);
+  
+  const logEndRef = useRef(null);
+
+  // Auto-scroll the log
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [log]);
+
   const pushLog = (s) =>
-    setLog((l) => [...l, `[${new Date().toLocaleTimeString()}] ${s}`]);
+    setLog((l) => [...l, `> ${new Date().toLocaleTimeString([], { hour12: false })} | ${s}`]);
 
   const uiError = (e) => {
     const msg = e?.message || String(e);
     setErr(msg);
-    pushLog(`ERROR: ${msg}`);
+    pushLog(`CRITICAL_ERR: ${msg}`);
   };
 
   const sortedWifi = useMemo(() => {
@@ -26,39 +33,28 @@ export default function ProvisionBle() {
       rssi: typeof x?.rssi === "number" ? x.rssi : null,
       auth: x?.auth ?? x?.security ?? null,
     }));
-
     const best = new Map();
     for (const ap of arr) {
       if (!ap.ssid) continue;
       const cur = best.get(ap.ssid);
-      if (!cur) best.set(ap.ssid, ap);
-      else {
-        const a = cur.rssi ?? -999;
-        const b = ap.rssi ?? -999;
-        if (b > a) best.set(ap.ssid, ap);
-      }
+      if (!cur || (ap.rssi ?? -999) > (cur.rssi ?? -999)) best.set(ap.ssid, ap);
     }
-
-    return Array.from(best.values()).sort(
-      (a, b) => (b.rssi ?? -999) - (a.rssi ?? -999)
-    );
+    return Array.from(best.values()).sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999));
   }, [wifiList]);
 
   async function connectAndScan() {
     setErr("");
     setBusy(true);
     try {
-      pushLog("Opening BLE picker…");
+      pushLog("SEARCHING_FOR_BLE_DEVICE...");
       const dev = await ESPProvisionManager.searchBLEDevice();
       setProvDev(dev);
-
-      pushLog(`Selected: ${dev?.deviceName || dev?.name || "device"}`);
+      pushLog(`HANDSHAKE_SUCCESS: ${dev?.deviceName || "MODULE64"}`);
       await dev.connect();
-
-      pushLog("Connected.");
+      pushLog("LINK_ESTABLISHED.");
       const list = await dev.scanWifiList();
       setWifiList(Array.isArray(list) ? list : []);
-      pushLog(`Found ${list?.length || 0} networks.`);
+      pushLog(`WIFI_SCAN_COMPLETE: Found ${list?.length || 0} APs.`);
     } catch (e) {
       uiError(e);
       setProvDev(null);
@@ -69,13 +65,13 @@ export default function ProvisionBle() {
 
   async function provision() {
     setErr("");
-    if (!provDev) return setErr("Not connected.");
-    if (!ssid) return setErr("Select a network first.");
-
+    if (!provDev) return setErr("No active link.");
+    if (!ssid) return setErr("Target SSID missing.");
     setBusy(true);
     try {
+      pushLog(`SENDING_PROVISIONING_DATA: SSID[${ssid}]`);
       await provDev.provision(ssid, pass || "");
-      pushLog("Credentials sent.");
+      pushLog("PROVISIONING_SENT: Device is rebooting.");
     } catch (e) {
       uiError(e);
     } finally {
@@ -84,64 +80,92 @@ export default function ProvisionBle() {
   }
 
   return (
-    <div className="page">
-      <div className="card">
-        <h1>Module64 BLE Provisioning</h1>
-        <div className="subtitle">
-          Chrome/Edge only — HTTPS or localhost required
+    <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
+      <div className="pixel-grid" />
+      
+      <div className="card" style={{ width: "100%", maxWidth: "600px" }}>
+        {/* HEADER */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem" }}>
+          <div>
+            <h2 style={{ margin: 0 }}>[ DEVICE_PROVISION ]</h2>
+            <p className="dim" style={{ fontSize: "0.7rem", marginTop: "4px" }}>MODULE64_ESP32_PROVISION_SERVICE_V1</p>
+          </div>
+          <Link to="/" className="dim" style={{ textDecoration: "none", fontSize: "0.8rem", border: "1px solid #ddd", padding: "4px 8px" }}>EXIT</Link>
         </div>
 
-        <div className="status">
-          Status: {provDev ? "Connected" : busy ? "Working…" : "Not connected"}
+        {/* STATUS BAR */}
+        <div style={{ 
+          background: provDev ? "var(--accent-soft)" : "#f4f4f418", 
+          padding: "1rem", 
+          borderLeft: `4px solid ${provDev ? "var(--accent)" : "#999"}`,
+          marginBottom: "2rem",
+          fontSize: "0.8rem"
+        }}>
+          <strong>CONNECTION_STATUS:</strong> {provDev ? "ACTIVE" : busy ? "SCANNING..." : "DISCONNECTED"}
+          {err && <div style={{ color: "red", marginTop: "8px", fontWeight: "bold" }}>!! {err}</div>}
         </div>
 
-        <button
-          onClick={connectAndScan}
-          disabled={busy || !!provDev}
-          style={{ marginBottom: 16 }}
-        >
-          {provDev ? "Connected" : "Connect + Scan Wi-Fi"}
-        </button>
+        {/* STEP 1: SCAN */}
+        {!provDev && (
+          <div style={{ marginBottom: "2rem" }}>
+            <button className="btn" onClick={connectAndScan} disabled={busy} style={{ width: "100%" }}>
+              {busy ? "COMMUNICATING..." : "INITIATE BLE SCAN"}
+            </button>
+          </div>
+        )}
 
-        <div className="field">
-          <label>Wi-Fi network</label>
-          <select
-            value={ssid}
-            onChange={(e) => setSsid(e.target.value)}
-            disabled={!provDev || busy}
-          >
-            <option value="">Select network</option>
-            {sortedWifi.map((ap) => (
-              <option key={ap.ssid} value={ap.ssid}>
-                {ap.ssid}
-                {ap.rssi != null ? ` (${ap.rssi} dBm)` : ""}
-              </option>
-            ))}
-          </select>
+        {/* STEP 2: FORM */}
+        {provDev && (
+          <div style={{ display: "grid", gap: "1.5rem", marginBottom: "2rem" }}>
+            <div className="field">
+              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: "bold", marginBottom: "8px" }}>SELECT_SSID</label>
+              <select
+                style={{ width: "100%", padding: "12px", border: "var(--border)", background: "white", fontFamily: "var(--font-mono)" }}
+                value={ssid}
+                onChange={(e) => setSsid(e.target.value)}
+                disabled={busy}
+              >
+                <option value="">-- SELECT NETWORK --</option>
+                {sortedWifi.map((ap) => (
+                  <option key={ap.ssid} value={ap.ssid}>
+                    {ap.ssid} {ap.rssi != null ? `[${ap.rssi}dBm]` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: "bold", marginBottom: "8px" }}>NETWORK_KEY</label>
+              <input
+                type="password"
+                style={{ width: "100%", padding: "12px", border: "var(--border)", fontFamily: "var(--font-mono)" }}
+                placeholder="Enter WPA2/3 key"
+                value={pass}
+                onChange={(e) => setPass(e.target.value)}
+                disabled={busy}
+              />
+            </div>
+
+            <button className="btn" onClick={provision} disabled={!ssid || busy} style={{ width: "100%" }}>
+              {busy ? "UPLOADING..." : "TRANSMIT CREDENTIALS"}
+            </button>
+          </div>
+        )}
+
+        {/* LOG CONSOLE */}
+        <div style={{ 
+          background: "#1a1a1a", 
+          color: "#00ff00", 
+          padding: "1rem", 
+          fontFamily: "var(--font-mono)", 
+          fontSize: "0.7rem",
+          height: "150px",
+          overflowY: "auto",
+          border: "4px solid #333"
+        }}>
+          {log.map((line, i) => <div key={i}>{line}</div>)}
+          <div ref={logEndRef} />
         </div>
-
-        <div className="field">
-          <label>Password</label>
-          <input
-            type="password"
-            placeholder="Wi-Fi password"
-            value={pass}
-            onChange={(e) => setPass(e.target.value)}
-            disabled={!provDev || busy}
-          />
-        </div>
-
-        <button
-          onClick={provision}
-          disabled={!ssid || !provDev || busy}
-          style={{ marginBottom: 16 }}
-        >
-          Send credentials
-        </button>
-
-        {err && <div className="error">{err}</div>}
-
-        <div className="log">{log.slice(-40).join("\n")}</div>
       </div>
     </div>
   );
